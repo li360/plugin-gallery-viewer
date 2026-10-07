@@ -1,10 +1,10 @@
 /** 图库主组件 — 接收 project:open 事件，管理图片加载 / 搜索 / 灯箱 / 配置读写 */
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createMultiInstanceFilter, type PluginContext, type ProjectMeta } from "plugin-protocol"
 import type { KmgrApi } from "kmgr-api"
 import type { ImageEntry, GalleryConfig } from "./types"
-import { flattenImages } from "./utils"
+import { flattenImages, toAssetUrl } from "./utils"
 import { GalleryGrid } from "./GalleryGrid"
 import { Lightbox } from "./Lightbox"
 
@@ -25,7 +25,8 @@ export function GalleryViewer({
   const [loading, setLoading] = useState(false)
   const writeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const filter = createMultiInstanceFilter(containerId)
+  // 多实例过滤器只需按 containerId 创建一次，避免每次渲染重订阅
+  const filter = useMemo(() => createMultiInstanceFilter(containerId), [containerId])
 
   /** 防抖写回 .projmeta.json */
   const debouncedWriteConfig = useCallback(
@@ -145,12 +146,9 @@ export function GalleryViewer({
         {/* 封面缩略图 */}
         {config.cover && (
           <img
-            src={
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              (window as any).__TAURI__?.core?.convertFileSrc?.(
-                `${projPath.replace(/[\\/]+$/, "")}/${config.cover}`.replace(/\\/g, "/"),
-              )
-            }
+            src={toAssetUrl(
+              `${projPath.replace(/[\\/]+$/, "")}/${config.cover}`.replace(/\\/g, "/"),
+            )}
             alt="封面"
             style={{
               width: 32, height: 32, objectFit: "cover", borderRadius: 4,

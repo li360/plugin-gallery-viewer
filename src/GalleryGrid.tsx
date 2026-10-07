@@ -1,5 +1,6 @@
 /** 图库网格视图 — 按子目录分组显示缩略图 */
 
+import { useMemo } from "react"
 import type { ImageEntry, GalleryConfig } from "./types"
 import { groupByFolder, toAssetUrl } from "./utils"
 
@@ -13,6 +14,12 @@ interface Props {
 /** 图库网格组件 */
 export function GalleryGrid({ images, config, onImageClick, onSetCover }: Props) {
   const groups = groupByFolder(images)
+  // 预建 路径→全局索引 映射，避免组内每项 findIndex 造成 O(n²)
+  const indexByPath = useMemo(() => {
+    const m = new Map<string, number>()
+    images.forEach((img, i) => m.set(img.path, i))
+    return m
+  }, [images])
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 16 }}>
@@ -35,7 +42,7 @@ export function GalleryGrid({ images, config, onImageClick, onSetCover }: Props)
             gap: 8,
           }}>
             {groupImages.map((img) => {
-              const globalIndex = images.findIndex((i) => i.path === img.path)
+              const globalIndex = indexByPath.get(img.path) ?? 0
               const isCover = config.cover === img.relPath
               const rating = config.ratings?.[img.relPath] ?? 0
               return (
