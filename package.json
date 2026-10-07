@@ -1,0 +1,18 @@
+{
+  "name": "plugin-gallery-viewer",
+  "version": "0.1.0",
+  "description": "图库项目视图插件 — 网格浏览、灯箱预览、EXIF、打星、封面、分组",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "esbuild": "^0.24.0",
+    "typescript": "~5.6.2"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1"
+  }
+}

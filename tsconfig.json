@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "declaration": false,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "plugin-protocol": ["./src/stubs/plugin-protocol.ts"],
+      "kmgr-api": ["./src/stubs/kmgr-api.ts"],
+      "workspace": ["./src/stubs/workspace.ts"]
+    }
+  },
+  "include": ["src/**/*"]
+}
