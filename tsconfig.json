@@ -11,9 +11,8 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "plugin-protocol": ["./src/stubs/plugin-protocol.ts"],
-      "kmgr-api": ["./src/stubs/kmgr-api.ts"],
-      "workspace": ["./src/stubs/workspace.ts"]
+      "plugin-protocol": ["../MyProj/packages/plugin-protocol/src/index.ts"],
+      "kmgr-api": ["../MyProj/packages/kmgr-api/src/index.ts"]
     }
   },
   "include": ["src/**/*"]

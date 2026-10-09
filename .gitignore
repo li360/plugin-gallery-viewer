@@ -4,6 +4,9 @@ node_modules/
 # 构建产物（发布时由 build.mjs 重新生成）
 dist/
 
+# Release 资产（上传到 GitHub Release，不入库）
+gewu-plugin.zip
+
 # 系统与编辑器
 Thumbs.db
 .DS_Store

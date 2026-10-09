@@ -1,0 +1,12 @@
+{
+  "id": "plugin-gallery-viewer",
+  "name": "图库视图",
+  "version": "0.2.2",
+  "downloadUrl": "https://github.com/li360/plugin-gallery-viewer/releases/latest/download/gewu-plugin.zip",
+  "checksum": "sha256:b6182de5d925deca9bf088b792b7f332da13b3c2a6cc9f55a8949601d1cc8c10",
+  "minAppVersion": "0.31.0",
+  "description": "类型化项目容器「图库」的专用视图 — 网格浏览 / 灯箱 / 多选批量 / 排序筛选 / EXIF / 打星 / 封面 / 分组",
+  "author": "GeWu Team",
+  "capabilities": ["kmgr:read", "kmgr:write"],
+  "notes": "首个公开发布版。网格浏览（子目录分组、文件名、搜索、四档缩略图、排序与星标筛选）；五颗星直接打分；多选批量打星/删除（带确认）；灯箱上下张浏览（键盘/半屏点击/按钮）、缩放旋转全屏、EXIF 面板；项目封面可与 GeWu 0.31 文件列表联动展示。元数据结构预留 AI 标签/描述/聚类字段。"
+}
