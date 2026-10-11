@@ -54,7 +54,27 @@ export interface ImageMeta {
   /** 感知哈希（pHash，重复检测用） */
   phash?: string
   /** EXIF 摘要（缓存，避免重复解析二进制） */
-  exif?: Record<string, unknown>
+  exif?: ExifMeta
+}
+
+/** 缓存的 EXIF 元数据 — 字段尽量数值化，便于范围筛选 */
+export interface ExifMeta {
+  /** 相机厂商 + 型号 */
+  camera?: string
+  /** 镜头型号 */
+  lens?: string
+  /** 拍摄时间（优先 DateTimeOriginal，格式 "YYYY-MM-DD HH:mm:ss"） */
+  dateTime?: string
+  /** ISO 感光度 */
+  iso?: number
+  /** 光圈值（数值，如 1.4、2.8） */
+  aperture?: number
+  /** 焦距（单位 mm，如 35） */
+  focalLength?: number
+  /** 图片宽度（像素） */
+  width?: number
+  /** 图片高度（像素） */
+  height?: number
 }
 
 /** 图库类型专属配置段（.projmeta.json 的 gallery 键） */
@@ -87,6 +107,28 @@ export interface GalleryConfig {
   viewMode?: "grid" | "map"
   /** 日期范围筛选（按修改时间，YYYY-MM-DD；from/to 任一为空表示该端不限） */
   dateRange?: { from?: string; to?: string }
+  /** EXIF 高级筛选条件 — 各字段缺省表示不限制 */
+  exifFilter?: ExifFilter
+}
+
+/** EXIF 高级筛选条件 */
+export interface ExifFilter {
+  /** 图片方向：横图 / 竖图 / 方图 */
+  orientation?: "landscape" | "portrait" | "square" | ""
+  /** 焦距下限（mm） */
+  focalMin?: number
+  /** 焦距上限（mm） */
+  focalMax?: number
+  /** 相机型号（精确匹配，空串表示不限） */
+  camera?: string
+  /** 镜头型号（精确匹配，空串表示不限） */
+  lens?: string
+  /** ISO 下限 */
+  isoMin?: number
+  /** ISO 上限 */
+  isoMax?: number
+  /** 光圈档位（精确值，如 1.4、2.8；缺省不限） */
+  aperture?: number
 }
 
 /** 灯箱状态 */

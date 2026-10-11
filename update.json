@@ -3,10 +3,10 @@
   "name": "图库视图",
   "version": "0.4.0",
   "downloadUrl": "https://github.com/li360/plugin-gallery-viewer/releases/latest/download/gewu-plugin.zip",
-  "checksum": "sha256:d8b77b3c14befb4c499f22ecb51483ef4008f5802db0b2176e3e9f59b68ff024",
+  "checksum": "sha256:acc4b3b805cfc147e56a44e233aab4f74c566843b7612e24c71df33c75e6651e",
   "minAppVersion": "0.32.0",
-  "description": "类型化项目容器「图库」的专用视图 — 网格浏览 / 灯箱 / 多选批量 / 排序筛选 / EXIF / 打星 / 封面 / 分组 / 地点相册 / 日期范围筛选",
+  "description": "类型化项目容器「图库」的专用视图 — 网格浏览 / 灯箱 / 多选批量 / 排序筛选 / EXIF / 打星 / 封面 / 分组 / 地点相册 / 日期范围 / EXIF 高级筛选",
   "author": "GeWu Team",
   "capabilities": ["kmgr:read", "kmgr:write"],
-  "notes": "新增日期范围筛选：工具栏「日期」起止选择器，按图片修改时间筛选，网格与地点相册视图通用。需 GeWu 0.32.0+。"
+  "notes": "新增 EXIF 高级筛选：工具栏「高级筛选」面板，支持按图片方向（横/竖/方）、焦段范围、相机型号、镜头型号、ISO 范围、光圈档位筛选。进入图库自动后台解析 EXIF 并缓存，日期筛选优先使用 EXIF 拍摄时间。需 GeWu 0.32.0+。"
 }

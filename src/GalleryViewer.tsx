@@ -17,7 +17,7 @@ import {
   type RoutedPayload,
 } from "plugin-protocol"
 import type { KmgrApi } from "kmgr-api"
-import type { ImageEntry, GalleryConfig, SortKey, SortDir, ThumbnailSize } from "./types"
+import type { ImageEntry, GalleryConfig, SortKey, SortDir, ThumbnailSize, ExifMeta, ExifFilter } from "./types"
 import {
   flattenImages,
   migrateRatings,
@@ -25,8 +25,11 @@ import {
   filterByRating,
   filterBySearch,
   filterByDateRange,
+  filterByExif,
+  collectExifOptions,
   toAssetUrl,
 } from "./utils"
+import { backfillExif } from "./exifService"
 import { GalleryGrid } from "./GalleryGrid"
 import { GalleryMap } from "./GalleryMap"
 import { Lightbox } from "./Lightbox"
@@ -50,6 +53,12 @@ export function GalleryViewer({
   const [selectionMode, setSelectionMode] = useState(false)
   const [lastAnchor, setLastAnchor] = useState<string | null>(null)
   const writeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** EXIF 批量解析进度（null = 未在进行） */
+  const [exifProgress, setExifProgress] = useState<{ done: number; total: number } | null>(null)
+  /** EXIF 解析取消标志 */
+  const exifCancelRef = useRef(false)
+  /** 高级筛选面板展开状态 */
+  const [advancedFilterOpen, setAdvancedFilterOpen] = useState(false)
 
   // 多实例过滤器只需按 containerId 创建一次，避免每次渲染重订阅
   const filter = useMemo(() => createMultiInstanceFilter(containerId), [containerId])
@@ -144,6 +153,45 @@ export function GalleryViewer({
     }
   }, [])
 
+  // ===== EXIF 批量解析：进入图库后后台解析未缓存的图片，结果写入 metas.exif =====
+  useEffect(() => {
+    if (!kmgrApi || images.length === 0) return
+    // 筛选出尚无 EXIF 缓存的图片
+    const pending = images.filter((img) => !config.metas?.[img.relPath]?.exif)
+    if (pending.length === 0) return
+
+    exifCancelRef.current = false
+    let active = true
+    void (async () => {
+      const result = await backfillExif(
+        kmgrApi,
+        pending,
+        (done, total) => {
+          if (active) setExifProgress({ done, total })
+        },
+        () => exifCancelRef.current,
+      )
+      if (!active || result.size === 0) {
+        if (active) setExifProgress(null)
+        return
+      }
+      // 将解析结果合并到 metas.exif 并持久化
+      updateConfig((c) => {
+        const metas = { ...(c.metas ?? {}) }
+        for (const [relPath, exif] of result) {
+          metas[relPath] = { ...(metas[relPath] ?? {}), exif }
+        }
+        return { ...c, metas }
+      })
+      if (active) setExifProgress(null)
+    })()
+
+    return () => {
+      active = false
+      exifCancelRef.current = true
+    }
+  }, [images, kmgrApi, config.metas, updateConfig])
+
   // ===== 三级管道：排序 → 星标筛选 → 搜索 =====
   const sortedImages = useMemo(
     () => sortImages(images, config.metas, config.sortBy ?? "name", config.sortDir ?? "asc"),
@@ -154,16 +202,33 @@ export function GalleryViewer({
     [sortedImages, config.metas, config.minRating],
   )
   const filteredByDate = useMemo(
-    () => filterByDateRange(filteredByRating, config.dateRange),
-    [filteredByRating, config.dateRange],
+    () => filterByDateRange(filteredByRating, config.metas, config.dateRange),
+    [filteredByRating, config.metas, config.dateRange],
+  )
+  const filteredByExif = useMemo(
+    () => filterByExif(filteredByDate, config.metas, config.exifFilter),
+    [filteredByDate, config.metas, config.exifFilter],
   )
   const filteredImages = useMemo(
-    () => filterBySearch(filteredByDate, search),
-    [filteredByDate, search],
+    () => filterBySearch(filteredByExif, search),
+    [filteredByExif, search],
   )
 
   // ===== 视图模式（持久化到 .projmeta.json） =====
   const viewMode = config.viewMode ?? "grid"
+
+  // ===== EXIF 筛选选项（从已解析的 metas 中聚合） =====
+  const exifOptions = useMemo(() => collectExifOptions(config.metas), [config.metas])
+  const exifFilter = config.exifFilter ?? {}
+  const hasExifFilter =
+    !!exifFilter.orientation ||
+    exifFilter.focalMin != null ||
+    exifFilter.focalMax != null ||
+    !!exifFilter.camera ||
+    !!exifFilter.lens ||
+    exifFilter.isoMin != null ||
+    exifFilter.isoMax != null ||
+    exifFilter.aperture != null
 
   // ===== 事件处理 =====
 
@@ -447,6 +512,27 @@ export function GalleryViewer({
           )}
         </div>
 
+        {/* 高级筛选按钮 — 展开/收起 EXIF 筛选面板 */}
+        <button
+          onClick={() => setAdvancedFilterOpen((v) => !v)}
+          style={{
+            ...btnStyle,
+            background: advancedFilterOpen || hasExifFilter ? "var(--color-primary)" : btnStyle.background,
+            color: advancedFilterOpen || hasExifFilter ? "#fff" : btnStyle.color,
+            borderColor: advancedFilterOpen || hasExifFilter ? "var(--color-primary)" : btnStyle.borderColor,
+          }}
+          title="EXIF 高级筛选（方向/焦段/相机/镜头/ISO/光圈）"
+        >
+          高级筛选{hasExifFilter ? " ●" : ""}
+        </button>
+
+        {/* EXIF 解析进度提示 */}
+        {exifProgress && (
+          <span style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-secondary)" }}>
+            解析 EXIF {exifProgress.done}/{exifProgress.total}
+          </span>
+        )}
+
         {viewMode === "grid" && (<>
         {/* 搜索 */}
         <input
@@ -565,6 +651,184 @@ export function GalleryViewer({
         </button>
         </>)}
       </div>
+
+      {/* 高级筛选面板 — EXIF 条件 */}
+      {advancedFilterOpen && (
+        <div style={{
+          display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap",
+          padding: "8px 16px",
+          background: "var(--color-bg-secondary)",
+          borderBottom: "1px solid var(--color-border)",
+          fontSize: "var(--font-size-sm)",
+        }}>
+          {/* 方向 */}
+          <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ color: "var(--color-text-secondary)" }}>方向</span>
+            <select
+              value={exifFilter.orientation ?? ""}
+              onChange={(e) =>
+                updateConfig((c) => ({
+                  ...c,
+                  exifFilter: { ...(c.exifFilter ?? {}), orientation: (e.target.value || "") as ExifFilter["orientation"] },
+                }))
+              }
+              style={selectStyle}
+            >
+              <option value="">全部</option>
+              <option value="landscape">横图</option>
+              <option value="portrait">竖图</option>
+              <option value="square">方图</option>
+            </select>
+          </label>
+
+          {/* 焦段 */}
+          <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ color: "var(--color-text-secondary)" }}>焦段</span>
+            <input
+              type="number"
+              placeholder="最小"
+              value={exifFilter.focalMin ?? ""}
+              onChange={(e) =>
+                updateConfig((c) => ({
+                  ...c,
+                  exifFilter: {
+                    ...(c.exifFilter ?? {}),
+                    focalMin: e.target.value ? Number(e.target.value) : undefined,
+                  },
+                }))
+              }
+              style={{ ...selectStyle, width: 60, padding: "3px 6px" }}
+            />
+            <span style={{ color: "var(--color-text-secondary)" }}>—</span>
+            <input
+              type="number"
+              placeholder="最大"
+              value={exifFilter.focalMax ?? ""}
+              onChange={(e) =>
+                updateConfig((c) => ({
+                  ...c,
+                  exifFilter: {
+                    ...(c.exifFilter ?? {}),
+                    focalMax: e.target.value ? Number(e.target.value) : undefined,
+                  },
+                }))
+              }
+              style={{ ...selectStyle, width: 60, padding: "3px 6px" }}
+            />
+            <span style={{ color: "var(--color-text-secondary)" }}>mm</span>
+          </label>
+
+          {/* 相机 */}
+          <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ color: "var(--color-text-secondary)" }}>相机</span>
+            <select
+              value={exifFilter.camera ?? ""}
+              onChange={(e) =>
+                updateConfig((c) => ({
+                  ...c,
+                  exifFilter: { ...(c.exifFilter ?? {}), camera: e.target.value || undefined },
+                }))
+              }
+              style={selectStyle}
+            >
+              <option value="">全部</option>
+              {exifOptions.cameras.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </label>
+
+          {/* 镜头 */}
+          <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ color: "var(--color-text-secondary)" }}>镜头</span>
+            <select
+              value={exifFilter.lens ?? ""}
+              onChange={(e) =>
+                updateConfig((c) => ({
+                  ...c,
+                  exifFilter: { ...(c.exifFilter ?? {}), lens: e.target.value || undefined },
+                }))
+              }
+              style={selectStyle}
+            >
+              <option value="">全部</option>
+              {exifOptions.lenses.map((l) => (
+                <option key={l} value={l}>{l}</option>
+              ))}
+            </select>
+          </label>
+
+          {/* ISO */}
+          <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ color: "var(--color-text-secondary)" }}>ISO</span>
+            <input
+              type="number"
+              placeholder="最小"
+              value={exifFilter.isoMin ?? ""}
+              onChange={(e) =>
+                updateConfig((c) => ({
+                  ...c,
+                  exifFilter: {
+                    ...(c.exifFilter ?? {}),
+                    isoMin: e.target.value ? Number(e.target.value) : undefined,
+                  },
+                }))
+              }
+              style={{ ...selectStyle, width: 60, padding: "3px 6px" }}
+            />
+            <span style={{ color: "var(--color-text-secondary)" }}>—</span>
+            <input
+              type="number"
+              placeholder="最大"
+              value={exifFilter.isoMax ?? ""}
+              onChange={(e) =>
+                updateConfig((c) => ({
+                  ...c,
+                  exifFilter: {
+                    ...(c.exifFilter ?? {}),
+                    isoMax: e.target.value ? Number(e.target.value) : undefined,
+                  },
+                }))
+              }
+              style={{ ...selectStyle, width: 60, padding: "3px 6px" }}
+            />
+          </label>
+
+          {/* 光圈 */}
+          <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ color: "var(--color-text-secondary)" }}>光圈</span>
+            <select
+              value={exifFilter.aperture ?? ""}
+              onChange={(e) =>
+                updateConfig((c) => ({
+                  ...c,
+                  exifFilter: {
+                    ...(c.exifFilter ?? {}),
+                    aperture: e.target.value ? Number(e.target.value) : undefined,
+                  },
+                }))
+              }
+              style={selectStyle}
+            >
+              <option value="">全部</option>
+              {[1.0, 1.4, 1.8, 2.0, 2.8, 3.5, 4.0, 5.6, 6.3, 8.0, 11, 16, 22].map((a) => (
+                <option key={a} value={a}>f/{a}</option>
+              ))}
+            </select>
+          </label>
+
+          {/* 清除全部 EXIF 筛选 */}
+          {hasExifFilter && (
+            <button
+              onClick={() => updateConfig((c) => ({ ...c, exifFilter: undefined }))}
+              style={{ ...btnStyle, padding: "2px 8px" }}
+              title="清除全部 EXIF 筛选条件"
+            >
+              清除筛选
+            </button>
+          )}
+        </div>
+      )}
 
       {/* 批量操作条 */}
       {selection.size > 0 && (

@@ -41,6 +41,15 @@ export async function readExif(path: string): Promise<ExifInfo> {
   }
 }
 
+/**
+ * 从二进制字节解析 EXIF — 供批量解析服务调用（复用 kmgr.readFileBytes 的结果）
+ * @param bytes 文件二进制内容
+ * @returns EXIF 数据（解析失败时返回空对象）
+ */
+export function parseExifFromBytes(bytes: Uint8Array): ExifInfo {
+  return parseExif(bytes.buffer)
+}
+
 /** 将 base64 字符串解码为 ArrayBuffer（WebView 均内置 atob） */
 function base64ToArrayBuffer(b64: string): ArrayBuffer {
   const bin = atob(b64)

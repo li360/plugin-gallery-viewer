@@ -1,6 +1,6 @@
 /** 图库插件工具函数 */
 import type { DirectoryEntry } from "kmgr-api"
-import type { ImageEntry, ImageMeta, SortKey, ThumbnailSize } from "./types"
+import type { ImageEntry, ImageMeta, SortKey, ThumbnailSize, ExifFilter } from "./types"
 
 /** 支持的图片扩展名（小写，含点） */
 export const IMAGE_EXTS = new Set([
@@ -172,22 +172,110 @@ export function filterBySearch(images: ImageEntry[], query: string): ImageEntry[
 /**
  * 按修改时间日期范围筛选。
  *
+ * 优先使用 EXIF 拍摄时间（dateTime），无 EXIF 时回退到文件修改时间。
+ *
  * @param images 待筛选图片
+ * @param metas  元数据表（用于读取 EXIF dateTime）
  * @param range  { from?: "YYYY-MM-DD"; to?: "YYYY-MM-DD" }，任一为空表示该端不限
  * @returns 筛选后的图片列表；无约束时原样返回
  */
 export function filterByDateRange(
   images: ImageEntry[],
+  metas: Record<string, ImageMeta> | undefined,
   range: { from?: string; to?: string } | undefined,
 ): ImageEntry[] {
   if (!range || (!range.from && !range.to)) return images
   const fromMs = range.from ? Date.parse(`${range.from}T00:00:00`) : -Infinity
   const toMs = range.to ? Date.parse(`${range.to}T23:59:59`) : Infinity
   return images.filter((img) => {
-    if (!img.modifiedAt) return false
-    const ms = Date.parse(img.modifiedAt)
-    return ms >= fromMs && ms <= toMs
+    // 优先 EXIF 拍摄时间，回退文件修改时间
+    const dateTime = metas?.[img.relPath]?.exif?.dateTime ?? img.modifiedAt
+    if (!dateTime) return false
+    const ms = Date.parse(dateTime.replace(" ", "T"))
+    return Number.isFinite(ms) && ms >= fromMs && ms <= toMs
   })
+}
+
+/**
+ * 判断图片方向（基于 EXIF 宽高，无 EXIF 时回退到文件尺寸不可用则返回 null）
+ */
+function getOrientation(meta: ImageMeta | undefined): "landscape" | "portrait" | "square" | null {
+  const w = meta?.exif?.width
+  const h = meta?.exif?.height
+  if (w == null || h == null) return null
+  if (w > h) return "landscape"
+  if (w < h) return "portrait"
+  return "square"
+}
+
+/**
+ * 按 EXIF 高级条件筛选。
+ *
+ * 无 EXIF 缓存的图片：
+ *  - 方向筛选 → 不满足（无法判断方向）
+ *  - 焦距/相机/镜头/ISO/光圈筛选 → 不满足（无对应 EXIF 字段）
+ *
+ * @param images 待筛选图片
+ * @param metas  元数据表（含 EXIF 缓存）
+ * @param filter EXIF 筛选条件
+ * @returns 筛选后的图片列表；无约束时原样返回
+ */
+export function filterByExif(
+  images: ImageEntry[],
+  metas: Record<string, ImageMeta> | undefined,
+  filter: ExifFilter | undefined,
+): ImageEntry[] {
+  if (!filter) return images
+  const { orientation, focalMin, focalMax, camera, lens, isoMin, isoMax, aperture } = filter
+  const hasConstraint =
+    !!orientation ||
+    focalMin != null ||
+    focalMax != null ||
+    !!camera ||
+    !!lens ||
+    isoMin != null ||
+    isoMax != null ||
+    aperture != null
+  if (!hasConstraint) return images
+
+  return images.filter((img) => {
+    const meta = metas?.[img.relPath]
+    const exif = meta?.exif
+    if (!exif) return false // 无 EXIF 缓存，不满足任何 EXIF 筛选条件
+
+    if (orientation) {
+      const o = getOrientation(meta)
+      if (o !== orientation) return false
+    }
+    if (focalMin != null && (exif.focalLength == null || exif.focalLength < focalMin)) return false
+    if (focalMax != null && (exif.focalLength == null || exif.focalLength > focalMax)) return false
+    if (camera && exif.camera !== camera) return false
+    if (lens && exif.lens !== lens) return false
+    if (isoMin != null && (exif.iso == null || exif.iso < isoMin)) return false
+    if (isoMax != null && (exif.iso == null || exif.iso > isoMax)) return false
+    if (aperture != null && (exif.aperture == null || Math.abs(exif.aperture - aperture) > 0.05)) return false
+    return true
+  })
+}
+
+/**
+ * 从已解析的 EXIF 元数据中聚合所有相机/镜头型号（去重排序），供下拉筛选使用
+ */
+export function collectExifOptions(
+  metas: Record<string, ImageMeta> | undefined,
+): { cameras: string[]; lenses: string[] } {
+  const cameras = new Set<string>()
+  const lenses = new Set<string>()
+  if (metas) {
+    for (const m of Object.values(metas)) {
+      if (m.exif?.camera) cameras.add(m.exif.camera)
+      if (m.exif?.lens) lenses.add(m.exif.lens)
+    }
+  }
+  return {
+    cameras: Array.from(cameras).sort(),
+    lenses: Array.from(lenses).sort(),
+  }
 }
 
 /**
