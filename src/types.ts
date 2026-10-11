@@ -85,6 +85,8 @@ export interface GalleryConfig {
   minRating?: number
   /** 视图模式：grid 网格（缺省）/ map 地点相册 */
   viewMode?: "grid" | "map"
+  /** 日期范围筛选（按修改时间，YYYY-MM-DD；from/to 任一为空表示该端不限） */
+  dateRange?: { from?: string; to?: string }
 }
 
 /** 灯箱状态 */

@@ -170,6 +170,27 @@ export function filterBySearch(images: ImageEntry[], query: string): ImageEntry[
 }
 
 /**
+ * 按修改时间日期范围筛选。
+ *
+ * @param images 待筛选图片
+ * @param range  { from?: "YYYY-MM-DD"; to?: "YYYY-MM-DD" }，任一为空表示该端不限
+ * @returns 筛选后的图片列表；无约束时原样返回
+ */
+export function filterByDateRange(
+  images: ImageEntry[],
+  range: { from?: string; to?: string } | undefined,
+): ImageEntry[] {
+  if (!range || (!range.from && !range.to)) return images
+  const fromMs = range.from ? Date.parse(`${range.from}T00:00:00`) : -Infinity
+  const toMs = range.to ? Date.parse(`${range.to}T23:59:59`) : Infinity
+  return images.filter((img) => {
+    if (!img.modifiedAt) return false
+    const ms = Date.parse(img.modifiedAt)
+    return ms >= fromMs && ms <= toMs
+  })
+}
+
+/**
  * 各档位对应的网格列最小宽度（px）—— 越小密度越高。
  */
 export const THUMBNAIL_MIN_SIZE: Record<ThumbnailSize, number> = {

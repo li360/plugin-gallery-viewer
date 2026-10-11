@@ -24,6 +24,7 @@ import {
   sortImages,
   filterByRating,
   filterBySearch,
+  filterByDateRange,
   toAssetUrl,
 } from "./utils"
 import { GalleryGrid } from "./GalleryGrid"
@@ -152,9 +153,13 @@ export function GalleryViewer({
     () => filterByRating(sortedImages, config.metas, config.minRating ?? 0),
     [sortedImages, config.metas, config.minRating],
   )
+  const filteredByDate = useMemo(
+    () => filterByDateRange(filteredByRating, config.dateRange),
+    [filteredByRating, config.dateRange],
+  )
   const filteredImages = useMemo(
-    () => filterBySearch(filteredByRating, search),
-    [filteredByRating, search],
+    () => filterBySearch(filteredByDate, search),
+    [filteredByDate, search],
   )
 
   // ===== 视图模式（持久化到 .projmeta.json） =====
@@ -399,6 +404,47 @@ export function GalleryViewer({
           >
             地点
           </button>
+        </div>
+
+        {/* 日期范围筛选 — 网格与地点相册通用 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+          <span style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-secondary)" }}>
+            日期
+          </span>
+          <input
+            type="date"
+            value={config.dateRange?.from ?? ""}
+            onChange={(e) =>
+              updateConfig((c) => ({
+                ...c,
+                dateRange: { ...(c.dateRange ?? {}), from: e.target.value || undefined },
+              }))
+            }
+            style={{ ...selectStyle, padding: "3px 6px" }}
+            title="起始日期（含）"
+          />
+          <span style={{ color: "var(--color-text-secondary)" }}>—</span>
+          <input
+            type="date"
+            value={config.dateRange?.to ?? ""}
+            onChange={(e) =>
+              updateConfig((c) => ({
+                ...c,
+                dateRange: { ...(c.dateRange ?? {}), to: e.target.value || undefined },
+              }))
+            }
+            style={{ ...selectStyle, padding: "3px 6px" }}
+            title="结束日期（含）"
+          />
+          {config.dateRange && (config.dateRange.from || config.dateRange.to) && (
+            <button
+              onClick={() => updateConfig((c) => ({ ...c, dateRange: undefined }))}
+              style={{ ...btnStyle, padding: "2px 6px" }}
+              title="清除日期筛选"
+            >
+              ✕
+            </button>
+          )}
         </div>
 
         {viewMode === "grid" && (<>

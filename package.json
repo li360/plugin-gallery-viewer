@@ -1,6 +1,6 @@
 {
   "name": "plugin-gallery-viewer",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "description": "图库项目视图插件 — 网格浏览、灯箱预览、EXIF、打星、封面、分组",
   "type": "module",
   "scripts": {
