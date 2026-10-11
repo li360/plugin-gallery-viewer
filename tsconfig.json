@@ -12,7 +12,8 @@
     "baseUrl": ".",
     "paths": {
       "plugin-protocol": ["../MyProj/packages/plugin-protocol/src/index.ts"],
-      "kmgr-api": ["../MyProj/packages/kmgr-api/src/index.ts"]
+      "kmgr-api": ["../MyProj/packages/kmgr-api/src/index.ts"],
+      "map-core": ["../MyProj/packages/map-core/src/index.ts"]
     }
   },
   "include": ["src/**/*"]

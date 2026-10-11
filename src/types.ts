@@ -83,6 +83,8 @@ export interface GalleryConfig {
   sortDir?: SortDir
   /** 星标筛选下限（仅显示 rating >= 此值的图），0 或缺省 = 不筛选 */
   minRating?: number
+  /** 视图模式：grid 网格（缺省）/ map 地点相册 */
+  viewMode?: "grid" | "map"
 }
 
 /** 灯箱状态 */

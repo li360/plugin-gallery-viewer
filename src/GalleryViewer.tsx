@@ -27,6 +27,7 @@ import {
   toAssetUrl,
 } from "./utils"
 import { GalleryGrid } from "./GalleryGrid"
+import { GalleryMap } from "./GalleryMap"
 import { Lightbox } from "./Lightbox"
 
 /** 主组件 */
@@ -156,12 +157,24 @@ export function GalleryViewer({
     [filteredByRating, search],
   )
 
+  // ===== 视图模式（持久化到 .projmeta.json） =====
+  const viewMode = config.viewMode ?? "grid"
+
   // ===== 事件处理 =====
 
   /** 点击 tile 进入灯箱（非多选模式） */
   const handleImageClick = useCallback((idx: number) => {
     setLightboxIndex(idx)
   }, [])
+
+  /** 地点相册点击单点 — 按 relPath 反查索引并打开灯箱 */
+  const handleOpenFromMap = useCallback(
+    (relPath: string) => {
+      const idx = filteredImages.findIndex((i) => i.relPath === relPath)
+      if (idx >= 0) setLightboxIndex(idx)
+    },
+    [filteredImages],
+  )
 
   /**
    * 切换选择：
@@ -351,6 +364,44 @@ export function GalleryViewer({
         display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap",
         padding: "8px 16px", borderBottom: "1px solid var(--color-border)",
       }}>
+        {/* 视图切换 — 网格 / 地点相册 */}
+        <div
+          style={{
+            display: "flex", borderRadius: 4, overflow: "hidden",
+            border: "1px solid var(--color-border)", flexShrink: 0,
+          }}
+        >
+          <button
+            onClick={() => updateConfig((c) => ({ ...c, viewMode: "grid" }))}
+            style={{
+              padding: "4px 10px", border: "none", cursor: "pointer",
+              fontSize: "var(--font-size-sm)",
+              background: viewMode === "grid" ? "var(--color-primary)" : "var(--color-bg)",
+              color: viewMode === "grid"
+                ? "var(--color-text-on-primary, #fff)"
+                : "var(--color-text-secondary)",
+            }}
+            title="网格浏览"
+          >
+            网格
+          </button>
+          <button
+            onClick={() => updateConfig((c) => ({ ...c, viewMode: "map" }))}
+            style={{
+              padding: "4px 10px", border: "none", cursor: "pointer",
+              fontSize: "var(--font-size-sm)",
+              background: viewMode === "map" ? "var(--color-primary)" : "var(--color-bg)",
+              color: viewMode === "map"
+                ? "var(--color-text-on-primary, #fff)"
+                : "var(--color-text-secondary)",
+            }}
+            title="地点相册 — 在地图上按位置浏览图片"
+          >
+            地点
+          </button>
+        </div>
+
+        {viewMode === "grid" && (<>
         {/* 搜索 */}
         <input
           type="text"
@@ -466,6 +517,7 @@ export function GalleryViewer({
         >
           多选
         </button>
+        </>)}
       </div>
 
       {/* 批量操作条 */}
@@ -516,7 +568,24 @@ export function GalleryViewer({
         </div>
       )}
 
-      {/* 网格 / 加载中 */}
+      {/* 地点相册 / 网格 */}
+      {viewMode === "map" ? (
+        loading ? (
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "center",
+            flex: 1, color: "var(--color-text-secondary)",
+          }}>
+            正在扫描图片…
+          </div>
+        ) : (
+          <GalleryMap
+            kmgr={kmgrApi}
+            images={filteredImages}
+            emit={emit}
+            onOpenImage={handleOpenFromMap}
+          />
+        )
+      ) : (
       <div style={{ flex: 1, overflow: "auto" }}>
         {loading ? (
           <div style={{
@@ -547,6 +616,7 @@ export function GalleryViewer({
           />
         )}
       </div>
+      )}
 
       {/* 灯箱 */}
       {lightboxIndex !== null && (

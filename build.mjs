@@ -24,6 +24,7 @@ await build({
     "plugin-protocol",
     "kmgr-api",
     "workspace",
+    "map-core",
   ],
   target: "es2020",
 })

@@ -14,5 +14,8 @@
   },
   "peerDependencies": {
     "react": "^18.3.1"
+  },
+  "dependencies": {
+    "exifr": "^7.1.3"
   }
 }
