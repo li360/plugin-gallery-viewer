@@ -31,6 +31,7 @@ import {
 } from "./utils"
 import { backfillExif } from "./exifService"
 import { GalleryGrid } from "./GalleryGrid"
+import { GalleryTimeline } from "./GalleryTimeline"
 import { GalleryMap } from "./GalleryMap"
 import { Lightbox } from "./Lightbox"
 
@@ -408,44 +409,44 @@ export function GalleryViewer({
     setLastAnchor(null)
   }, [])
 
-  // ===== 工具栏内联样式 =====
+  // ===== 工具栏内联样式（对齐 GeWu 设计规范：font-size-xs + 紧凑 padding） =====
   const selectStyle: React.CSSProperties = {
-    padding: "4px 8px",
-    borderRadius: 4,
+    padding: "1px 6px",
+    borderRadius: "var(--radius-sm)",
     border: "1px solid var(--color-border)",
     background: "var(--color-bg)",
     color: "var(--color-text)",
-    fontSize: "var(--font-size-sm)",
+    fontSize: "var(--font-size-xs)",
   }
   const btnStyle: React.CSSProperties = {
-    padding: "4px 10px",
-    borderRadius: 4,
+    padding: "1px 6px",
+    borderRadius: "var(--radius-sm)",
     border: "1px solid var(--color-border)",
     background: "var(--color-bg)",
     color: "var(--color-text)",
     cursor: "pointer",
-    fontSize: "var(--font-size-sm)",
+    fontSize: "var(--font-size-xs)",
   }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       {/* 工具栏 */}
       <div style={{
-        display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap",
+        display: "flex", gap: "var(--space-xs)", alignItems: "center", flexWrap: "wrap",
         padding: "8px 16px", borderBottom: "1px solid var(--color-border)",
       }}>
-        {/* 视图切换 — 网格 / 地点相册 */}
+        {/* 视图切换 — 网格 / 时间线 / 地点相册 */}
         <div
           style={{
-            display: "flex", borderRadius: 4, overflow: "hidden",
+            display: "flex", borderRadius: "var(--radius-sm)", overflow: "hidden",
             border: "1px solid var(--color-border)", flexShrink: 0,
           }}
         >
           <button
             onClick={() => updateConfig((c) => ({ ...c, viewMode: "grid" }))}
             style={{
-              padding: "4px 10px", border: "none", cursor: "pointer",
-              fontSize: "var(--font-size-sm)",
+              padding: "1px 8px", border: "none", cursor: "pointer",
+              fontSize: "var(--font-size-xs)",
               background: viewMode === "grid" ? "var(--color-primary)" : "var(--color-bg)",
               color: viewMode === "grid"
                 ? "var(--color-text-on-primary, #fff)"
@@ -456,10 +457,24 @@ export function GalleryViewer({
             网格
           </button>
           <button
+            onClick={() => updateConfig((c) => ({ ...c, viewMode: "timeline" }))}
+            style={{
+              padding: "1px 8px", border: "none", cursor: "pointer",
+              fontSize: "var(--font-size-xs)",
+              background: viewMode === "timeline" ? "var(--color-primary)" : "var(--color-bg)",
+              color: viewMode === "timeline"
+                ? "var(--color-text-on-primary, #fff)"
+                : "var(--color-text-secondary)",
+            }}
+            title="时间线 — 按拍摄日期分组浏览"
+          >
+            时间线
+          </button>
+          <button
             onClick={() => updateConfig((c) => ({ ...c, viewMode: "map" }))}
             style={{
-              padding: "4px 10px", border: "none", cursor: "pointer",
-              fontSize: "var(--font-size-sm)",
+              padding: "1px 8px", border: "none", cursor: "pointer",
+              fontSize: "var(--font-size-xs)",
               background: viewMode === "map" ? "var(--color-primary)" : "var(--color-bg)",
               color: viewMode === "map"
                 ? "var(--color-text-on-primary, #fff)"
@@ -485,7 +500,7 @@ export function GalleryViewer({
                 dateRange: { ...(c.dateRange ?? {}), from: e.target.value || undefined },
               }))
             }
-            style={{ ...selectStyle, padding: "3px 6px" }}
+            style={{ ...selectStyle }}
             title="起始日期（含）"
           />
           <span style={{ color: "var(--color-text-secondary)" }}>—</span>
@@ -498,13 +513,13 @@ export function GalleryViewer({
                 dateRange: { ...(c.dateRange ?? {}), to: e.target.value || undefined },
               }))
             }
-            style={{ ...selectStyle, padding: "3px 6px" }}
+            style={{ ...selectStyle }}
             title="结束日期（含）"
           />
           {config.dateRange && (config.dateRange.from || config.dateRange.to) && (
             <button
               onClick={() => updateConfig((c) => ({ ...c, dateRange: undefined }))}
-              style={{ ...btnStyle, padding: "2px 6px" }}
+              style={{ ...btnStyle }}
               title="清除日期筛选"
             >
               ✕
@@ -534,6 +549,21 @@ export function GalleryViewer({
         )}
 
         {viewMode === "grid" && (<>
+        {/* 分组方式 — 按文件夹 / 按日期 */}
+        <label style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+          <span style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)" }}>分组</span>
+          <select
+            value={config.gridGrouping ?? "folder"}
+            onChange={(e) =>
+              updateConfig((c) => ({ ...c, gridGrouping: e.target.value as "folder" | "date" }))
+            }
+            style={selectStyle}
+            title="网格视图分组方式"
+          >
+            <option value="folder">按文件夹</option>
+            <option value="date">按日期</option>
+          </select>
+        </label>
         {/* 搜索 */}
         <input
           type="text"
@@ -652,11 +682,11 @@ export function GalleryViewer({
         </>)}
       </div>
 
-      {/* 高级筛选面板 — EXIF 条件 */}
+      {/* 高级筛选面板 — EXIF 条件（单行横向滚动，避免占多行高度） */}
       {advancedFilterOpen && (
         <div style={{
-          display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap",
-          padding: "8px 16px",
+          display: "flex", gap: "var(--space-sm)", alignItems: "center", flexWrap: "nowrap",
+          overflowX: "auto", padding: "6px 16px",
           background: "var(--color-bg-secondary)",
           borderBottom: "1px solid var(--color-border)",
           fontSize: "var(--font-size-sm)",
@@ -697,7 +727,7 @@ export function GalleryViewer({
                   },
                 }))
               }
-              style={{ ...selectStyle, width: 60, padding: "3px 6px" }}
+              style={{ ...selectStyle, width: 60 }}
             />
             <span style={{ color: "var(--color-text-secondary)" }}>—</span>
             <input
@@ -713,7 +743,7 @@ export function GalleryViewer({
                   },
                 }))
               }
-              style={{ ...selectStyle, width: 60, padding: "3px 6px" }}
+              style={{ ...selectStyle, width: 60 }}
             />
             <span style={{ color: "var(--color-text-secondary)" }}>mm</span>
           </label>
@@ -774,7 +804,7 @@ export function GalleryViewer({
                   },
                 }))
               }
-              style={{ ...selectStyle, width: 60, padding: "3px 6px" }}
+              style={{ ...selectStyle, width: 60 }}
             />
             <span style={{ color: "var(--color-text-secondary)" }}>—</span>
             <input
@@ -790,7 +820,7 @@ export function GalleryViewer({
                   },
                 }))
               }
-              style={{ ...selectStyle, width: 60, padding: "3px 6px" }}
+              style={{ ...selectStyle, width: 60 }}
             />
           </label>
 
@@ -847,7 +877,7 @@ export function GalleryViewer({
             <button
               key={star}
               onClick={() => handleBatchRate(star)}
-              style={{ ...btnStyle, padding: "2px 6px" }}
+              style={{ ...btnStyle }}
               title={`批量评 ${star} 星`}
             >
               ★{star}
@@ -855,7 +885,7 @@ export function GalleryViewer({
           ))}
           <button
             onClick={() => handleBatchRate(0)}
-            style={{ ...btnStyle, padding: "2px 6px" }}
+            style={{ ...btnStyle }}
             title="批量清零评分"
           >
             清零
@@ -878,7 +908,7 @@ export function GalleryViewer({
         </div>
       )}
 
-      {/* 地点相册 / 网格 */}
+      {/* 视图渲染：网格 / 时间线 / 地点相册 */}
       {viewMode === "map" ? (
         loading ? (
           <div style={{
@@ -911,6 +941,19 @@ export function GalleryViewer({
           }}>
             {search.trim() ? "未找到匹配的图片" : "图库中暂无图片"}
           </div>
+        ) : viewMode === "timeline" ? (
+          <GalleryTimeline
+            images={filteredImages}
+            config={config}
+            selection={selection}
+            selectionMode={selectionMode}
+            onImageClick={handleImageClick}
+            onToggleSelect={handleToggleSelect}
+            onRate={handleRate}
+            onSetCover={handleSetCover}
+            onLocate={handleLocate}
+            onDelete={handleDelete}
+          />
         ) : (
           <GalleryGrid
             images={filteredImages}

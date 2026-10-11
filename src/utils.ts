@@ -259,6 +259,56 @@ export function filterByExif(
 }
 
 /**
+ * 按拍摄日期分组（时间线视图用）。
+ *
+ * 优先使用 EXIF 拍摄时间（dateTime），无 EXIF 时回退到文件修改时间。
+ * 无时间信息的图片归入「未知日期」组。
+ *
+ * @param images 待分组图片
+ * @param metas  元数据表（用于读取 EXIF dateTime）
+ * @returns Map<日期字符串, 图片[]>，日期倒序，组内按时间倒序
+ */
+export function groupByDate(
+  images: ImageEntry[],
+  metas: Record<string, ImageMeta> | undefined,
+): Map<string, ImageEntry[]> {
+  // relPath → 时间戳（用于组内排序）
+  const tsByPath = new Map<string, number>()
+  const groups = new Map<string, ImageEntry[]>()
+  for (const img of images) {
+    const raw = metas?.[img.relPath]?.exif?.dateTime ?? img.modifiedAt
+    let key = "未知日期"
+    let ts = 0
+    if (raw) {
+      const ms = Date.parse(raw.replace(" ", "T"))
+      if (Number.isFinite(ms)) {
+        const d = new Date(ms)
+        key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+        ts = ms
+      }
+    }
+    tsByPath.set(img.relPath, ts)
+    const arr = groups.get(key) ?? []
+    arr.push(img)
+    groups.set(key, arr)
+  }
+
+  // 组内按时间倒序，组间按日期倒序
+  const sorted = new Map<string, ImageEntry[]>()
+  const keys = Array.from(groups.keys()).sort((a, b) => {
+    if (a === "未知日期") return 1
+    if (b === "未知日期") return -1
+    return b.localeCompare(a)
+  })
+  for (const key of keys) {
+    const arr = groups.get(key)!.slice()
+    arr.sort((a, b) => (tsByPath.get(b.relPath) ?? 0) - (tsByPath.get(a.relPath) ?? 0))
+    sorted.set(key, arr)
+  }
+  return sorted
+}
+
+/**
  * 从已解析的 EXIF 元数据中聚合所有相机/镜头型号（去重排序），供下拉筛选使用
  */
 export function collectExifOptions(

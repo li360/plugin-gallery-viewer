@@ -103,8 +103,10 @@ export interface GalleryConfig {
   sortDir?: SortDir
   /** 星标筛选下限（仅显示 rating >= 此值的图），0 或缺省 = 不筛选 */
   minRating?: number
-  /** 视图模式：grid 网格（缺省）/ map 地点相册 */
-  viewMode?: "grid" | "map"
+  /** 视图模式：grid 网格（缺省）/ map 地点相册 / timeline 时间线 */
+  viewMode?: "grid" | "map" | "timeline"
+  /** 网格视图分组方式：folder 按文件夹（缺省）/ date 按拍摄日期 */
+  gridGrouping?: "folder" | "date"
   /** 日期范围筛选（按修改时间，YYYY-MM-DD；from/to 任一为空表示该端不限） */
   dateRange?: { from?: string; to?: string }
   /** EXIF 高级筛选条件 — 各字段缺省表示不限制 */

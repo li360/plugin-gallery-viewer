@@ -13,6 +13,7 @@ import { useMemo, useState } from "react"
 import type { ImageEntry, GalleryConfig } from "./types"
 import {
   groupByFolder,
+  groupByDate,
   toAssetUrl,
   THUMBNAIL_MIN_SIZE,
   THUMBNAIL_TILE_SIZE,
@@ -54,18 +55,19 @@ export function GalleryGrid({
   onLocate,
   onDelete,
 }: Props) {
-  const groups = groupByFolder(images)
+  const thumbnailSize = config.thumbnailSize ?? "md"
+  const minColumn = THUMBNAIL_MIN_SIZE[thumbnailSize]
+  const tileH = THUMBNAIL_TILE_SIZE[thumbnailSize]
+  const metas = config.metas ?? {}
+  // 分组方式：按文件夹（缺省）或按拍摄日期
+  const grouping = config.gridGrouping ?? "folder"
+  const groups = grouping === "date" ? groupByDate(images, config.metas) : groupByFolder(images)
   // 预建 路径→全局索引 映射，避免组内每项 findIndex 造成 O(n²)
   const indexByPath = useMemo(() => {
     const m = new Map<string, number>()
     images.forEach((img, i) => m.set(img.relPath, i))
     return m
   }, [images])
-
-  const thumbnailSize = config.thumbnailSize ?? "md"
-  const minColumn = THUMBNAIL_MIN_SIZE[thumbnailSize]
-  const tileH = THUMBNAIL_TILE_SIZE[thumbnailSize]
-  const metas = config.metas ?? {}
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 16 }}>
