@@ -7,6 +7,7 @@
   "icon": "🖼️",
   "minAppVersion": "0.32.0",
   "capabilities": ["kmgr:read", "kmgr:write"],
+  "repository": "https://github.com/li360/plugin-gallery-viewer",
   "emits": ["gallery:cover-changed", "gallery:rating-changed"],
   "handles": ["project:open"],
   "projectTypes": ["gallery"],

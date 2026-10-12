@@ -3,7 +3,7 @@
   "name": "图库视图",
   "version": "0.4.0",
   "downloadUrl": "https://github.com/li360/plugin-gallery-viewer/releases/latest/download/gewu-plugin.zip",
-  "checksum": "sha256:5ede17e3240a2954810d077d47d7459cb7436e052d2d7f34b6fb931ed1b2551d",
+  "checksum": "sha256:347633f78f2451a0b7ee00e315fcb3488edbe00f10d7b05eb75bd1f6500105d1",
   "minAppVersion": "0.32.0",
   "description": "类型化项目容器「图库」的专用视图 — 网格浏览 / 灯箱 / 多选批量 / 排序筛选 / EXIF / 打星 / 封面 / 分组 / 地点相册 / 日期范围 / EXIF 高级筛选",
   "author": "GeWu Team",
