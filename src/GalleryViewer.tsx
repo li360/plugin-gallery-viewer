@@ -26,13 +26,17 @@ import {
   filterBySearch,
   filterByDateRange,
   filterByExif,
+  filterByBBox,
   collectExifOptions,
   toAssetUrl,
 } from "./utils"
 import { backfillExif } from "./exifService"
+import { useGeoIndex } from "./useGeoIndex"
 import { GalleryGrid } from "./GalleryGrid"
 import { GalleryTimeline } from "./GalleryTimeline"
 import { GalleryMap } from "./GalleryMap"
+import { GalleryTrack } from "./GalleryTrack"
+import { MiniMap } from "./MiniMap"
 import { Lightbox } from "./Lightbox"
 
 /** 主组件 */
@@ -60,6 +64,11 @@ export function GalleryViewer({
   const exifCancelRef = useRef(false)
   /** 高级筛选面板展开状态 */
   const [advancedFilterOpen, setAdvancedFilterOpen] = useState(false)
+
+  // ===== 坐标索引（迷你地图 + 地点相册共享） =====
+  const { geoPoints, backfill, cancel: cancelGeoBackfill } = useGeoIndex(kmgrApi, images)
+  /** 迷你地图区域筛选 bbox（null = 不筛选） */
+  const [regionBBox, setRegionBBox] = useState<[number, number, number, number] | null>(null)
 
   // 多实例过滤器只需按 containerId 创建一次，避免每次渲染重订阅
   const filter = useMemo(() => createMultiInstanceFilter(containerId), [containerId])
@@ -210,9 +219,13 @@ export function GalleryViewer({
     () => filterByExif(filteredByDate, config.metas, config.exifFilter),
     [filteredByDate, config.metas, config.exifFilter],
   )
+  const filteredByRegion = useMemo(
+    () => filterByBBox(filteredByExif, geoPoints, regionBBox),
+    [filteredByExif, geoPoints, regionBBox],
+  )
   const filteredImages = useMemo(
-    () => filterBySearch(filteredByExif, search),
-    [filteredByExif, search],
+    () => filterBySearch(filteredByRegion, search),
+    [filteredByRegion, search],
   )
 
   // ===== 视图模式（持久化到 .projmeta.json） =====
@@ -484,6 +497,20 @@ export function GalleryViewer({
           >
             地点
           </button>
+          <button
+            onClick={() => updateConfig((c) => ({ ...c, viewMode: "track" }))}
+            style={{
+              padding: "1px 8px", border: "none", cursor: "pointer",
+              fontSize: "var(--font-size-xs)",
+              background: viewMode === "track" ? "var(--color-primary)" : "var(--color-bg)",
+              color: viewMode === "track"
+                ? "var(--color-text-on-primary, #fff)"
+                : "var(--color-text-secondary)",
+            }}
+            title="轨迹视图 — 按拍摄时间在地图上连线"
+          >
+            轨迹
+          </button>
         </div>
 
         {/* 日期范围筛选 — 网格与地点相册通用 */}
@@ -545,6 +572,38 @@ export function GalleryViewer({
         {exifProgress && (
           <span style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-secondary)" }}>
             解析 EXIF {exifProgress.done}/{exifProgress.total}
+          </span>
+        )}
+
+        {/* 区域筛选激活提示 */}
+        {regionBBox && (
+          <span
+            style={{
+              fontSize: "var(--font-size-xs)",
+              color: "var(--color-primary)",
+              background: "var(--color-bg-elevated)",
+              padding: "1px 6px",
+              borderRadius: 3,
+              border: "1px solid var(--color-primary)",
+            }}
+          >
+            区域筛选中
+            <button
+              type="button"
+              onClick={() => setRegionBBox(null)}
+              style={{
+                marginLeft: 4,
+                border: "none",
+                background: "transparent",
+                color: "var(--color-primary)",
+                cursor: "pointer",
+                fontSize: "var(--font-size-xs)",
+                padding: 0,
+              }}
+              title="清除区域筛选"
+            >
+              ×
+            </button>
           </span>
         )}
 
@@ -908,8 +967,8 @@ export function GalleryViewer({
         </div>
       )}
 
-      {/* 视图渲染：网格 / 时间线 / 地点相册 */}
-      {viewMode === "map" ? (
+      {/* 视图渲染：网格 / 时间线 / 地点相册 / 轨迹 */}
+      {viewMode === "map" || viewMode === "track" ? (
         loading ? (
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "center",
@@ -917,16 +976,38 @@ export function GalleryViewer({
           }}>
             正在扫描图片…
           </div>
-        ) : (
+        ) : viewMode === "map" ? (
           <GalleryMap
             kmgr={kmgrApi}
             images={filteredImages}
+            geoPoints={geoPoints}
+            backfill={backfill}
+            onCancelBackfill={cancelGeoBackfill}
+            emit={emit}
+            onOpenImage={handleOpenFromMap}
+          />
+        ) : (
+          <GalleryTrack
+            kmgr={kmgrApi}
+            images={filteredImages}
+            metas={config.metas}
+            geoPoints={geoPoints}
+            backfill={backfill}
+            onCancelBackfill={cancelGeoBackfill}
             emit={emit}
             onOpenImage={handleOpenFromMap}
           />
         )
       ) : (
-      <div style={{ flex: 1, overflow: "auto" }}>
+      <div style={{ flex: 1, overflow: "auto", position: "relative" }}>
+        {/* 迷你地图 — 网格/时间线视图右上角，支持区域筛选 */}
+        {!loading && (
+          <MiniMap
+            images={filteredImages}
+            geoPoints={geoPoints}
+            onRegionChange={setRegionBBox}
+          />
+        )}
         {loading ? (
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "center",

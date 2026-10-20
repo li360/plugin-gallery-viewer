@@ -197,6 +197,33 @@ export function filterByDateRange(
 }
 
 /**
+ * 按经纬度范围筛选图片（迷你地图「应用视野」用）
+ *
+ * @param images    待筛选图片
+ * @param geoPoints 坐标索引（key = 规范化路径）
+ * @param bbox      [minLng, minLat, maxLng, maxLat]
+ * @returns 坐标落在 bbox 内的图片；无坐标的图片被排除
+ */
+export function filterByBBox(
+  images: ImageEntry[],
+  geoPoints: Map<string, { latitude: number; longitude: number }>,
+  bbox: [number, number, number, number] | null,
+): ImageEntry[] {
+  if (!bbox) return images
+  const [minLng, minLat, maxLng, maxLat] = bbox
+  return images.filter((img) => {
+    const p = geoPoints.get(img.path.replace(/\\/g, "/"))
+    if (!p) return false
+    return (
+      p.longitude >= minLng &&
+      p.longitude <= maxLng &&
+      p.latitude >= minLat &&
+      p.latitude <= maxLat
+    )
+  })
+}
+
+/**
  * 判断图片方向（基于 EXIF 宽高，无 EXIF 时回退到文件尺寸不可用则返回 null）
  */
 function getOrientation(meta: ImageMeta | undefined): "landscape" | "portrait" | "square" | null {

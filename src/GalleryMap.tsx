@@ -7,17 +7,15 @@
  * - 底图跟随全局在线/离线配置（与主程序地图视图共用 localStorage 键）
  * - 进入视图时自动为无坐标图片批量补解析 EXIF GPS（显示进度、可取消）
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 import type { PluginContext } from "plugin-protocol"
 import type { KmgrApi, FileGeoPoint } from "kmgr-api"
-import { MapView, useMapArchives, ONLINE_BASEMAP_STORAGE_KEY } from "map-core"
+import { MapView } from "map-core"
 import type { ImageMapMarker, MapViewHandle } from "map-core"
 import type { ImageEntry } from "./types"
 import { toAssetUrl } from "./utils"
-import { fetchGalleryGeoIndex, backfillGeo } from "./geoService"
-
-/** localStorage 键 — 与主程序地图视图共用，记住用户选择的离线归档 */
-const ARCHIVE_STORAGE_KEY = "gewu-map-selected-archive"
+import { useMapBasemap } from "./useMapBasemap"
+import { MapToolbar } from "./MapToolbar"
 
 /** 规范化路径 — 与 geoService 一致的反斜杠统一 */
 function normPath(p: string): string {
@@ -29,6 +27,12 @@ interface Props {
   kmgr: KmgrApi | undefined
   /** 图库图片列表（已经过排序 / 星标 / 搜索过滤） */
   images: ImageEntry[]
+  /** 图库坐标索引（由 GalleryViewer 的 useGeoIndex 提供，与迷你地图共享） */
+  geoPoints: Map<string, FileGeoPoint>
+  /** 补解析进度（null = 未在进行） */
+  backfill: { done: number; total: number } | null
+  /** 取消补解析回调（停止按钮） */
+  onCancelBackfill?: () => void
   /** 事件发射器（toast / 打开设置面板） */
   emit: PluginContext["emit"]
   /** 点击单点缩略图 — 打开灯箱（传 relPath） */
@@ -36,81 +40,19 @@ interface Props {
 }
 
 /**
- * 地点相册视图组件
+ * 地点相册视图组件 — 「地图即索引」
  *
- * 数据流：
- * images 变化 → fetchGalleryGeoIndex 拉坐标 → 有缺 → backfillGeo 后台补解析 → 合并更新
+ * 坐标数据由父组件 useGeoIndex 提供（与迷你地图共享），
+ * 本组件只负责大地图渲染：聚合圆下钻、单点缩略图点击开灯箱。
  */
-export function GalleryMap({ kmgr, images, emit, onOpenImage }: Props) {
-  /** 已安装的 PMTiles 归档（map-core Hook） */
-  const { archives, loading: archivesLoading } = useMapArchives()
-  /** 用户选择的归档 ID（null 时回退到第一个已安装归档） */
-  const [selectedId, setSelectedId] = useState<string | null>(() =>
-    typeof localStorage !== "undefined" ? localStorage.getItem(ARCHIVE_STORAGE_KEY) : null,
-  )
-  /** 在线底图开关 — 与地图视图 / 选点器共用同一 localStorage 键 */
-  const [onlineBasemap, setOnlineBasemap] = useState<boolean>(
-    () =>
-      typeof localStorage !== "undefined" &&
-      localStorage.getItem(ONLINE_BASEMAP_STORAGE_KEY) === "1",
-  )
-  /** 图库图片坐标索引（key = 规范化路径） */
-  const [geoPoints, setGeoPoints] = useState<Map<string, FileGeoPoint>>(new Map())
-  /** 补解析进度（null = 未在进行） */
-  const [backfill, setBackfill] = useState<{ done: number; total: number } | null>(null)
-  /** 补解析取消标志 — 卸载 / images 变化时置 true 中断后台循环 */
-  const cancelRef = useRef(false)
+export function GalleryMap({ kmgr, images, geoPoints, backfill, onCancelBackfill, emit, onOpenImage }: Props) {
+  /** 底图状态（归档选择 + 在线开关，与轨迹视图共享实现） */
+  const { archives, archivesLoading, archive, onlineBasemap, toggleOnline, handleArchiveChange } =
+    useMapBasemap()
   /** MapView 命令式句柄 — 初始 fitTo 用 */
   const mapRef = useRef<MapViewHandle>(null)
   /** 初始全量 fitTo 是否已执行 */
   const didInitialFitRef = useRef(false)
-
-  /** 当前生效归档：优先用户选择，缺省取第一个 */
-  const archive = useMemo(
-    () => archives.find((a) => a.id === selectedId) ?? archives[0] ?? null,
-    [archives, selectedId],
-  )
-
-  // images 变化（进入视图 / 换项目 / 删除图片）→ 重拉坐标 + 后台补解析
-  useEffect(() => {
-    if (!kmgr) return
-    let cancelled = false
-    cancelRef.current = false
-    ;(async () => {
-      try {
-        const { points, missing } = await fetchGalleryGeoIndex(kmgr, images)
-        if (cancelled) return
-        setGeoPoints(new Map(points))
-        if (missing.length > 0) {
-          const added = await backfillGeo(
-            kmgr,
-            missing,
-            (done, total) => {
-              if (!cancelled) setBackfill({ done, total })
-            },
-            () => cancelled,
-          )
-          if (cancelled) return
-          // 合并本次新解析点位，地图即时出点（无需重新查库）
-          if (added.length > 0) {
-            setGeoPoints((prev) => {
-              const next = new Map(prev)
-              for (const p of added) next.set(normPath(p.path), p)
-              return next
-            })
-          }
-        }
-        setBackfill(null)
-      } catch {
-        // 点位查询失败不致命 — 保留已加载部分
-        if (!cancelled) setBackfill(null)
-      }
-    })()
-    return () => {
-      cancelled = true
-      cancelRef.current = true
-    }
-  }, [kmgr, images])
 
   /**
    * 地图标记 — 图库内有坐标的图片。
@@ -155,31 +97,6 @@ export function GalleryMap({ kmgr, images, emit, onOpenImage }: Props) {
     [images, onOpenImage],
   )
 
-  /** 切换在线/离线底图并持久化 — 与主程序地图视图状态保持一致 */
-  const toggleOnline = () => {
-    setOnlineBasemap((v) => {
-      const next = !v
-      localStorage.setItem(ONLINE_BASEMAP_STORAGE_KEY, next ? "1" : "0")
-      return next
-    })
-  }
-
-  /** 切换离线归档并持久化选择 */
-  const handleArchiveChange = (id: string) => {
-    setSelectedId(id)
-    localStorage.setItem(ARCHIVE_STORAGE_KEY, id)
-  }
-
-  const btnStyle: React.CSSProperties = {
-    fontSize: "var(--font-size-xs)",
-    padding: "2px 8px",
-    background: "var(--color-bg)",
-    color: "var(--color-text-secondary)",
-    border: "1px solid var(--color-border)",
-    borderRadius: 4,
-    cursor: "pointer",
-  }
-
   /** 是否处于「有图但还没有任何坐标」状态 — 用于空态提示 */
   const noGeoAtAll = images.length > 0 && markers.length === 0 && !backfill
 
@@ -193,104 +110,19 @@ export function GalleryMap({ kmgr, images, emit, onOpenImage }: Props) {
         overflow: "hidden",
       }}
     >
-      {/* 工具栏 */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--space-xs, 6px)",
-          padding: "6px 16px",
-          borderBottom: "1px solid var(--color-border)",
-          flexWrap: "wrap",
-        }}
-      >
-        <span style={{ fontSize: "var(--font-size-sm)", fontWeight: 600 }}>
-          地点相册
-        </span>
-
-        {/* 点位统计 */}
-        <span style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)" }}>
-          {kmgr ? `${markers.length} / ${images.length} 张有位置` : "纯前端模式：位置数据不可用"}
-        </span>
-
-        {/* 补解析进度 + 取消 */}
-        {backfill && (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)" }}>
-              定位解析中 ({backfill.done}/{backfill.total})…
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                cancelRef.current = true
-              }}
-              style={btnStyle}
-              title="停止后台位置解析（已解析的结果保留）"
-            >
-              停止
-            </button>
-          </span>
-        )}
-
-        <span style={{ flex: 1 }} />
-
-        {/* 归档选择 — 多归档时显示下拉 */}
-        {archives.length > 1 && (
-          <select
-            value={archive?.id ?? ""}
-            onChange={(e) => handleArchiveChange(e.target.value)}
-            style={{
-              fontSize: "var(--font-size-xs)",
-              padding: "2px 4px",
-              background: "var(--color-bg)",
-              color: "var(--color-text)",
-              border: "1px solid var(--color-border)",
-              borderRadius: 4,
-            }}
-          >
-            {archives.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
-        )}
-
-        {/* 在线底图切换 — 与主程序共用全局配置 */}
-        <button
-          type="button"
-          onClick={toggleOnline}
-          title={
-            onlineBasemap
-              ? "已启用在线底图（高德地图），点击切回离线"
-              : "启用在线底图（高德地图，细节更丰富）"
-          }
-          style={{
-            ...btnStyle,
-            background: onlineBasemap ? "var(--color-primary)" : btnStyle.background,
-            color: onlineBasemap ? "var(--color-text-on-primary, #fff)" : btnStyle.color,
-            borderColor: onlineBasemap ? "var(--color-primary)" : btnStyle.borderColor,
-          }}
-        >
-          在线
-        </button>
-
-        {/* 无归档且非在线 — 引导下载地图 */}
-        {!archivesLoading && archives.length === 0 && !onlineBasemap && (
-          <button
-            type="button"
-            onClick={() => emit("overlay:open", { pluginId: "settings" })}
-            style={{
-              ...btnStyle,
-              background: "var(--color-primary)",
-              color: "var(--color-text-on-primary, #fff)",
-              borderColor: "var(--color-primary)",
-            }}
-          >
-            下载地图
-          </button>
-        )}
-      </div>
+      <MapToolbar
+        title="地点相册"
+        stats={kmgr ? `${markers.length} / ${images.length} 张有位置` : "纯前端模式：位置数据不可用"}
+        backfill={backfill}
+        onCancelBackfill={onCancelBackfill}
+        archives={archives}
+        archivesLoading={archivesLoading}
+        archive={archive}
+        onArchiveChange={handleArchiveChange}
+        onlineBasemap={onlineBasemap}
+        onToggleOnline={toggleOnline}
+        onOpenSettings={() => emit("overlay:open", { pluginId: "settings" })}
+      />
 
       {/* 地图主体 / 空态 */}
       <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
