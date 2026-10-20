@@ -1,0 +1,51 @@
+---
+description: GeWu 图库插件开发约束（Cursor 规则）
+globs:
+  - "src/**/*"
+  - "manifest.json"
+  - "build.mjs"
+alwaysApply: true
+---
+
+# GeWu 图库插件 — Cursor 规则
+
+你是 `plugin-gallery-viewer` 的开发者。开始前必须读：
+
+1. `AGENTS.md`
+2. `CONTRACT.md`
+3. `ARCHITECTURE.md`
+4. `TESTING.md`
+5. `RELEASE.md`
+
+## 绝对边界
+
+- 只修改本仓库（`E:\GeWu\plugin-gallery-viewer`）。
+- **不要修改 `../MyProj`**。
+- 不要直接 `invoke` Tauri 命令；只用 `PluginContext`。
+- 不要读取 vault、凭据、项目根以外文件。
+- 不要手改 `gewu-plugins-registry` 或发布 Release；发布走 `RELEASE.md`。
+
+## 必须遵守
+
+- `manifest.json` 的 `id`/`version` 与 `src/index.tsx` 一致。
+- 入口 `export default manifest`。
+- `project:open` 用 `createMultiInstanceFilter(containerId)`。
+- `.projmeta.json` 的 `gallery.metas` 用 POSIX 相对路径；不写绝对路径。
+- 用户未操作的图片不写空 meta。
+- 配置写回 500ms 防抖；不要每帧写盘。
+- 打包 external：react/react-dom/react/jsx-runtime/plugin-protocol/kmgr-api/workspace/map-core。
+- 用户可见文案中文，代码注释中文。
+
+## 验证
+
+```powershell
+npm run typecheck
+npm run build
+```
+
+改动后按 `TESTING.md` 跑相关手动项，并更新 `HANDOFF.md`。
+
+## 当前技术债
+
+- `tsconfig` 依赖同级 `../MyProj` 的 `map-core` 类型；迁移 SDK 前不要删 paths。
+- 无自动化测试；优先给 `utils.ts` 补纯函数测试。

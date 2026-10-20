@@ -4,6 +4,19 @@ GeWu 的「图库」项目视图插件：网格浏览、灯箱、多选批量、
 
 插件类型：**项目视图**（处理 `.proj` 中 `type: "gallery"` 的容器），不是编辑器。
 
+## 交接先读
+
+外部开发者 / Cursor 接手，请按顺序读：
+
+1. [AGENTS.md](./AGENTS.md) — AI/开发者边界与硬约束
+2. [CONTRACT.md](./CONTRACT.md) — manifest / 项目 meta / 事件 / API
+3. [ARCHITECTURE.md](./ARCHITECTURE.md) — 组件与数据流
+4. [TESTING.md](./TESTING.md) — 手动验收矩阵
+5. [RELEASE.md](./RELEASE.md) — 发布与 registry
+6. [HANDOFF.md](./HANDOFF.md) — 当前版本、已知问题、下一步
+
+通用插件文档：<https://li360.github.io/gewu-site/plugin-development/>
+
 ## 目录
 
 ```
@@ -29,7 +42,7 @@ update.json              ← 自更新清单（发布用）
 
 ```powershell
 cd E:\GeWu\plugin-gallery-viewer
-npm ci
+npm install              # npm 11 下 npm ci 可能因 @esbuild 平台包报 notsup
 npm run typecheck        # tsc --noEmit
 npm run build            # node build.mjs → dist/index.js + dist/manifest.json
 ```
@@ -40,34 +53,23 @@ npm run build            # node build.mjs → dist/index.js + dist/manifest.json
 
 ## 发布
 
-1. 同步版本号：`manifest.json` 的 `version` = `package.json` 的 `version`
-2. 构建并打包（ZIP 根目录必须是 `index.js` + `manifest.json`）：
+完整流程见 [RELEASE.md](./RELEASE.md)。一键发布：
 
 ```powershell
-npm run build
-Compress-Archive -Path dist\index.js,dist\manifest.json -DestinationPath gewu-plugin.zip -Force
-(Get-FileHash gewu-plugin.zip -Algorithm SHA256).Hash.ToLower()
+pwsh -NoProfile -File E:\GeWu\MyProj\scripts\publish-plugin.ps1 `
+  -PluginPath E:\GeWu\plugin-gallery-viewer `
+  -GitHubRepo li360/plugin-gallery-viewer `
+  -PushRegistry
 ```
 
-3. 更新 `update.json`：
+脚本会构建 ZIP、生成 `update.json`、发 GitHub Release，并更新社区 `registry.json`。
 
-```json
-{
-  "id": "plugin-gallery-viewer",
-  "name": "图库视图",
-  "version": "0.6.0",
-  "downloadUrl": "https://github.com/li360/plugin-gallery-viewer/releases/latest/download/gewu-plugin.zip",
-  "checksum": "sha256:<ZIP 的 SHA256>",
-  "minAppVersion": "0.32.0",
-  "description": "……",
-  "author": "GeWu Team",
-  "capabilities": ["kmgr:read", "kmgr:write"],
-  "notes": "本次更新说明"
-}
-```
+手工发布的最低要求：
 
-4. 在 GitHub Release（latest）上传 `gewu-plugin.zip` 与 `update.json`
-5. 在 GeWu「插件管理 → 检查更新」验证能识别新版本
+1. `manifest.json` / `package.json` / `src/index.tsx` 版本一致
+2. ZIP 根目录是 `index.js` + `manifest.json`
+3. `update.json.checksum` 与 ZIP SHA256 一致
+4. 先发 Release，再更新 registry
 
 > 仓库根目录的 `gewu-plugin.zip` / `update.json` 是最近一次发布的副本；**发布前必须让两者与 `manifest.json` 版本一致**，否则自更新会显示旧版本。
 
